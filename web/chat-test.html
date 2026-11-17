@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>채팅 연결 테스트</title>
+<style>
+  :root { color-scheme: dark; --night: #0c1220; --platform: #141c2e; --rail: #26314a; --ink: #e8ecf4; --dim: #8792aa; --lamp: #f3b84b; --alarm: #ff6b5e; --ok: #5fd39a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--night); color: var(--ink); font: 15px/1.5 "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 20px 16px; display: grid; gap: 12px; }
+  h1 { font-size: 20px; margin: 0; }
+  .card { background: var(--platform); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+  .row { display: flex; gap: 6px; }
+  input, select, button { font: inherit; color: var(--ink); background: var(--night); border: 1px solid var(--rail); border-radius: 8px; padding: 7px 10px; }
+  input { flex: 1; min-width: 0; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--lamp); }
+  #status { font-size: 13px; color: var(--dim); }
+  #status.live { color: var(--ok); }
+  #status.bad { color: var(--alarm); }
+  #log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  #log li { background: var(--platform); border-radius: 10px; padding: 8px 12px; }
+  #log .who { font-size: 12px; color: var(--dim); }
+  #log .me { box-shadow: 0 0 0 2px var(--lamp); }
+  code { font-size: 12px; color: var(--dim); word-break: break-all; }
+</style>
+</head>
+<body>
+<main>
+  <h1>채팅 연결 테스트</h1>
+  <div id="status">준비 중…</div>
+
+  <div class="card" id="joinCard" hidden>
+    <div>입장 코드를 넣어 주세요. (리드에게 받기)</div>
+    <form class="row" id="joinForm"><input id="code" autocomplete="off" aria-label="입장 코드"><button>입장</button></form>
+  </div>
+
+  <div class="card" id="sendCard" hidden>
+    <form class="row" id="sendForm">
+      <select id="station" aria-label="역"><option>강남</option><option>홍대입구</option><option>건대입구</option><option>신림</option><option>잠실</option></select>
+      <input id="text" maxlength="60" autocomplete="off" placeholder="한마디 (60자)" aria-label="한마디">
+      <button>띄우기</button>
+    </form>
+    <div>내 uid: <code id="uid"></code></div>
+  </div>
+
+  <ul id="log"></ul>
+</main>
+
+<script type="module">
+import { connectChat, nick } from "./chat.js";
+
+const $ = id => document.getElementById(id);
+const say = (text, cls = "") => { $("status").textContent = text; $("status").className = cls; };
+
+let cfg;
+try { cfg = await import("./config.js"); }
+catch { say("web/config.js 가 없어요. config.example.js 를 복사해서 값을 채워 주세요.", "bad"); throw new Error("no config"); }
+if (!cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) { say("config.js 에 URL과 anon 키를 채워 주세요.", "bad"); throw new Error("empty config"); }
+
+const STATUS = { connecting: ["연결 중…", ""], need_code: ["입장 코드가 필요해요.", ""], live: ["실시간 연결됨", "live"], offline: ["연결이 끊겼어요. 새로고침해 주세요.", "bad"] };
+const REASON = { rate_limited: "3초에 한 번만 띄울 수 있어요.", invalid: "60자 안으로 써 주세요.", not_member: "입장 코드를 먼저 넣어 주세요.", empty: "내용이 비었어요.", error: "보내지 못했어요." };
+
+let chat;
+const show = (m, { replay }) => {
+  const li = document.createElement("li");
+  if (chat && m.uid === chat.uid) li.className = "me";
+  const who = document.createElement("div"); who.className = "who";
+  who.textContent = `${m.station} · ${chat && m.uid === chat.uid ? "나" : nick(m.uid)} · ${new Date(m.at).toLocaleTimeString("ko-KR")}${replay ? " · 지난 한마디" : ""}`;
+  const tx = document.createElement("div"); tx.textContent = m.text;
+  li.append(who, tx); $("log").prepend(li);
+};
+
+try {
+  chat = await connectChat({ url: cfg.SUPABASE_URL, anonKey: cfg.SUPABASE_ANON_KEY, onMessage: show, onStatus: s => say(...STATUS[s]) });
+} catch (e) {
+  say("로그인 실패: Supabase 에서 Anonymous sign-ins 를 켰는지 확인해 주세요.", "bad"); throw e;
+}
+$("uid").textContent = chat.uid;
+const ready = () => { $("joinCard").hidden = true; $("sendCard").hidden = false; };
+if (chat.isMember) ready(); else $("joinCard").hidden = false;
+
+$("joinForm").onsubmit = async e => {
+  e.preventDefault();
+  if (await chat.join($("code").value)) ready(); else say("코드가 맞지 않아요.", "bad");
+};
+$("sendForm").onsubmit = async e => {
+  e.preventDefault();
+  const r = await chat.send({ text: $("text").value, station: $("station").value, line: "2" });
+  if (r.ok) $("text").value = ""; else say(REASON[r.reason] || REASON.error, "bad");
+};
+</script>
+</body>
+</html>

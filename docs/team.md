@@ -31,7 +31,7 @@ git switch <내 이름 브랜치>   # 예: git switch Min
 | 3 | 역 마스터·승하차 | 정해지면 적기 | `pipeline/collect_stations.py`, `collect_ridership.py` | `stations.json`, `ridership.json` | 세 데이터의 역 이름이 전부 매칭(못 맞춘 이름 목록 0) |
 | 4 | 심야버스 | 정해지면 적기 | `pipeline/collect_nbus.py`, `data/manual/` | `nbus.json` | 출처 확정, 주요 역 20곳 이상 N버스 정류장 연결 |
 | 5 | 지도 화면 | 정해지면 적기 | `web/` | 프로토타입을 모듈로 나누고 JSON 읽기 | fixtures → out 으로 경로만 바꿔도 동작, 휴대폰 폭 확인 |
-| 6 | 채팅·배포 | 정해지면 적기 | `web/chat.js`, `supabase/` | Supabase 테이블·RLS, 실시간 말풍선, GitHub Pages | 배포 주소에서 팀원 2명이 서로 한마디 확인 |
+| 6 | 채팅·배포 | 정해지면 적기 | `web/chat.js`, `supabase/` | Supabase 프로젝트 설정(시작 코드 있음: `supabase/README.md`), 지도에 붙이기, GitHub Pages | 배포 주소에서 3명 이상이 동시에 한마디 확인, 30개 몰려도 1분 안에 다 지나감 |
 
 발표자료와 시연 영상은 각자 맡은 부분을 한 장씩 쓴다. 정리는 6번이 한다.
 

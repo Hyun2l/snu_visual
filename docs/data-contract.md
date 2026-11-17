@@ -52,16 +52,11 @@
 
 ## 채팅 (Supabase) — 담당: 채팅·배포
 
-```sql
-create table messages (
-  id bigint generated always as identity primary key,
-  uid uuid not null default auth.uid(),
-  station text not null,
-  line text,
-  kind text not null check (kind in ('text','preset')),
-  text text not null check (char_length(text) between 1 and 60),
-  created_at timestamptz not null default now()
-);
--- RLS: 읽기는 로그인한 사람, 쓰기는 본인 uid 로만. 팀 전용 기간에는 허용 이메일 목록으로 제한.
-```
+- 표: `messages(id, uid, station, line, kind, text, created_at)`, `members(uid, is_admin)`, `settings(key, value)`
+- 전체 정의와 권한 규칙은 [`supabase/schema.sql`](../supabase/schema.sql), 설정 순서는 [`supabase/README.md`](../supabase/README.md)
+- 웹 쪽 연결은 [`web/chat.js`](../web/chat.js) 의 `connectChat()`. 화면이 받는 메시지 모양:
+  ```js
+  { id, uid, station: "강남", line: "2", kind: "text" | "preset", text: "탔어요", at: 1763380000000 }
+  ```
+- 입장은 익명 로그인 + 입장 코드. 이메일은 받지 않는다.
 - 프론트에는 anon 키만 넣는다. service_role 키는 절대 커밋하지 않는다.
