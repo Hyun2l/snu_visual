@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>막차 대합실</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: 전광판 시계 → 지도(한마디가 역 위에 떴다가 열차가 되어 떠남) + 내 역·한마디 입력 → 시간 레일. 심야 단일 테마. */
+:root {
+  --night: #0c1220;
+  --platform: #141c2e;
+  --rail: #26314a;
+  --ink: #e8ecf4;
+  --dim: #8792aa;
+  --lamp: #f3b84b;
+  --alarm: #ff6b5e;
+  --ok: #5fd39a;
+  --bubble: #eef1f7;
+  --bubble-ink: #141c2e;
+  --display: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--night); color: var(--ink); font-family: var(--display); font-size: 15px; line-height: 1.5; margin: 0; }
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 28px;
+  display: grid; gap: 14px;
+}
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+.clock { display: flex; align-items: center; gap: 12px; }
+.time { font-family: var(--mono); font-size: 34px; font-weight: 600; color: var(--lamp); font-variant-numeric: tabular-nums; line-height: 1; }
+.pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--lamp); color: var(--lamp); white-space: nowrap; }
+.pill.live { border-color: var(--ok); color: var(--ok); }
+
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.mapbox { position: relative; background: var(--platform); border-radius: 14px; overflow: hidden; min-width: 0; }
+canvas#map { display: block; width: 100%; height: 620px; cursor: pointer; }
+@media (max-width: 860px) { canvas#map { height: 460px; } }
+.maptop { position: absolute; top: 10px; left: 12px; right: 12px; display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--dim); pointer-events: none; }
+.maptop button { pointer-events: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; }
+.mapnote { position: absolute; left: 12px; bottom: 10px; right: 12px; font-size: 12px; color: var(--dim); pointer-events: none; }
+.bubbles { position: absolute; inset: 0; pointer-events: none; }
+
+/* 말풍선 */
+.bubble { position: absolute; max-width: 220px; background: var(--bubble); color: var(--bubble-ink); border-radius: 12px; padding: 7px 11px 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,.45); transform-origin: 50% 100%;
+  transform: translate(-50%, calc(-100% - 16px)) scale(.6); opacity: 0;
+  transition: transform .28s cubic-bezier(.2,1.4,.4,1), opacity .2s; }
+.bubble::after { content: ""; position: absolute; left: var(--tail, 50%); bottom: -6px; width: 12px; height: 12px; background: var(--bubble); transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
+.bubble.below { transform-origin: 50% 0%; transform: translate(-50%, 16px) scale(.6); }
+.bubble.below::after { bottom: auto; top: -6px; }
+.bubble.in { transform: translate(-50%, calc(-100% - 16px)) scale(1); opacity: 1; }
+.bubble.below.in { transform: translate(-50%, 16px) scale(1); }
+.bubble.out { transform: translate(-50%, calc(-100% - 4px)) scale(.15); opacity: 0; transition: transform .5s cubic-bezier(.6,0,.9,.4), opacity .5s; }
+.bubble.below.out { transform: translate(-50%, 4px) scale(.15); }
+.bubble .who { font-size: 11px; color: #5b6680; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bubble .who i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.bubble .txt { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.bubble.me { box-shadow: 0 0 0 2px var(--lamp), 0 6px 24px rgba(0,0,0,.45); }
+.bubble.sample .who::after { content: "· 예시"; }
+
+aside { display: grid; gap: 14px; min-width: 0; }
+.card { background: var(--platform); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; min-width: 0; }
+.card h2 { font-size: 13px; margin: 0; color: var(--dim); font-weight: 500; }
+.row { display: flex; align-items: center; gap: 10px; }
+select { font: inherit; background: var(--night); color: var(--ink); border: 1px solid var(--rail); border-radius: 8px; padding: 6px 8px; flex: 1; min-width: 0; }
+.lastt { font-family: var(--mono); color: var(--dim); font-size: 13px; white-space: nowrap; }
+.count { font-family: var(--mono); font-size: 32px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.count.warn { color: var(--alarm); }
+.ticket { height: 10px; border-radius: 5px; background: var(--night); position: relative; overflow: hidden; }
+.ticket i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, var(--lamp), #ffd88a); border-radius: 5px; }
+.ambient { color: var(--dim); font-size: 13px; }
+.ambient b { color: var(--ink); font-weight: 500; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips button { font-size: 13px; padding: 4px 10px; border-radius: 999px; }
+form.send { display: flex; gap: 6px; }
+form.send input { font: inherit; flex: 1; min-width: 0; background: var(--night); color: var(--ink); border: 1px solid var(--rail); border-radius: 8px; padding: 7px 10px; }
+button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--rail); background: var(--night); color: var(--ink); padding: 7px 12px; }
+button:hover:not(:disabled) { border-color: var(--lamp); }
+button:disabled, input:disabled { opacity: 0.5; cursor: not-allowed; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
+.status { font-size: 12px; color: var(--dim); min-height: 1em; }
+
+.railbar { background: var(--platform); border-radius: 14px; padding: 10px 14px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; align-items: center; }
+input[type=range] { width: 100%; accent-color: var(--lamp); }
+.ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+@media (prefers-reduced-motion: reduce) { .bubble, .bubble.out { transition: opacity .2s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>막차 대합실</h1>
+    <div class="clock">
+      <span id="modePill" class="pill">데모 시계</span>
+      <span class="time" id="clock">23:40</span>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="mapbox" id="mapbox">
+      <canvas id="map" role="img" aria-label="서울 지하철 막차 지도. 한마디가 역 위에 떴다가 열차가 되어 노선을 따라 떠납니다."></canvas>
+      <div class="bubbles" id="bubbles" aria-live="polite"></div>
+      <div class="maptop"><span id="passed">한마디는 역 위에 떴다가 열차가 되어 떠나요</span><button type="button" id="sampleBtn">예시 한마디 띄우기</button></div>
+      <div class="mapnote">점 = 평소 이 시각 그 역에서 타는 사람 · 점선 = 데이터 범위 밖 · 예시 데이터(가짜 수치)</div>
+    </div>
+
+    <aside>
+      <div class="card">
+        <div class="row">
+          <select id="pick" aria-label="내 역"></select>
+          <span class="lastt" id="lastT">막차 --:--</span>
+        </div>
+        <div class="count" id="countdown">--:--</div>
+        <div class="ticket" aria-hidden="true"><i id="burn"></i></div>
+        <div class="ambient" id="ambient"></div>
+      </div>
+
+      <div class="card">
+        <h2>내 역에서 한마디</h2>
+        <div class="chips">
+          <button type="button" data-preset="달리는 중">달리는 중</button>
+          <button type="button" data-preset="탔어요">탔어요</button>
+          <button type="button" data-preset="놓쳤어요">놓쳤어요</button>
+        </div>
+        <form class="send" id="sendForm">
+          <input id="msgInput" maxlength="60" autocomplete="off" placeholder="지도에 띄울 한마디" aria-label="한마디">
+          <button type="submit" id="sendBtn">띄우기</button>
+        </form>
+        <div class="status" id="chatStatus">떠난 한마디는 다시 볼 수 없어요.</div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="railbar">
+    <button id="play" type="button">▶ 재생</button>
+    <div>
+      <input id="slider" type="range" min="1350" max="1530" step="1" value="1420" aria-label="지도 시각">
+      <div class="ticks"><span>22:30</span><span>23:30</span><span>00:30</span><span>01:30</span></div>
+    </div>
+    <button type="button" id="nowBtn">지금</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ── 예시 데이터 (전부 가짜): [위도, 경도, 23시대 승차, 00시대 승차] ──
+  const ST = {
+    "서울역":[37.5547,126.9707,1500,700], "시청":[37.5657,126.9769,1100,520], "종각":[37.5702,126.9831,1800,1400],
+    "종로3가":[37.5715,126.9915,1300,820], "동대문":[37.5714,127.0098,700,380], "청량리":[37.5802,127.0472,900,520],
+    "을지로입구":[37.5660,126.9826,1300,800], "동대문역사문화공원":[37.5652,127.0079,1000,640], "왕십리":[37.5612,127.0371,1300,850],
+    "성수":[37.5446,127.0559,1500,1050], "건대입구":[37.5404,127.0702,2600,1950], "잠실":[37.5133,127.1001,2400,1500],
+    "삼성":[37.5088,127.0631,1500,800], "강남":[37.4979,127.0276,3200,2150], "교대":[37.4934,127.0140,1200,820],
+    "사당":[37.4766,126.9816,1900,1300], "서울대입구":[37.4812,126.9527,1400,1050], "신림":[37.4842,126.9297,1800,1500],
+    "구로디지털단지":[37.4852,126.9015,1300,900], "신도림":[37.5088,126.8913,1200,700], "영등포구청":[37.5248,126.8960,800,460],
+    "합정":[37.5495,126.9139,1500,1150], "홍대입구":[37.5571,126.9245,3500,2700], "신촌":[37.5552,126.9369,1700,1250],
+    "이대":[37.5567,126.9460,700,380], "충정로":[37.5597,126.9636,500,260], "경복궁":[37.5757,126.9735,500,230],
+    "충무로":[37.5612,126.9942,900,560], "약수":[37.5543,127.0107,600,350], "옥수":[37.5406,127.0175,400,210],
+    "압구정":[37.5270,127.0284,900,660], "신사":[37.5164,127.0203,1300,1020], "고속터미널":[37.5049,127.0049,1600,900],
+    "혜화":[37.5822,127.0019,1200,860], "명동":[37.5609,126.9863,1100,560], "회현":[37.5585,126.9781,500,240],
+    "숙대입구":[37.5446,126.9721,500,300], "삼각지":[37.5347,126.9730,500,330], "이촌":[37.5221,126.9745,400,200],
+    "동작":[37.5028,126.9796,300,150], "총신대입구":[37.4865,126.9819,900,560], "여의도":[37.5216,126.9243,1100,500],
+    "공덕":[37.5443,126.9516,900,520], "광화문":[37.5709,126.9768,1000,420], "군자":[37.5571,127.0794,800,520],
+    "청담":[37.5191,127.0519,600,420], "강남구청":[37.5172,127.0412,700,450], "논현":[37.5110,127.0215,900,640],
+    "내방":[37.4876,126.9935,400,230], "대림":[37.4926,126.8949,700,420], "노량진":[37.5133,126.9426,800,430],
+    "신논현":[37.5045,127.0250,1300,900], "선정릉":[37.5104,127.0436,600,350], "종합운동장":[37.5110,127.0738,700,330],
+    "남영":[37.5410,126.9713,300,150], "용산":[37.5298,126.9648,900,420], "대방":[37.5133,126.9264,400,220],
+    "신길":[37.5170,126.9177,400,230], "영등포":[37.5156,126.9073,1100,600]
+  };
+  const LINES = [
+    { id:"1", color:"#2f6fd6", base:1470, stops:["서울역","시청","종각","종로3가","동대문","청량리"] },
+    { id:"2", color:"#1fb35a", base:1500, loop:true, stops:["시청","을지로입구","동대문역사문화공원","왕십리","성수","건대입구","잠실","삼성","강남","교대","사당","서울대입구","신림","구로디지털단지","신도림","영등포구청","합정","홍대입구","신촌","이대","충정로"] },
+    { id:"3", color:"#f08a2c", base:1476, stops:["경복궁","종로3가","충무로","약수","옥수","압구정","신사","고속터미널","교대"] },
+    { id:"4", color:"#2ab4e6", base:1482, stops:["혜화","동대문","동대문역사문화공원","충무로","명동","회현","서울역","숙대입구","삼각지","이촌","동작","총신대입구","사당"] },
+    { id:"5", color:"#a27cc4", base:1466, stops:["여의도","공덕","광화문","종로3가","동대문역사문화공원","왕십리","군자"] },
+    { id:"7", color:"#8f9a2a", base:1486, stops:["군자","건대입구","청담","강남구청","논현","고속터미널","내방","총신대입구","대림"] },
+    { id:"9", color:"#c9b98a", base:1458, stops:["신논현","선정릉","종합운동장"] },
+    { id:"9x", excluded:true, stops:["여의도","노량진","동작","고속터미널","신논현"] },
+    { id:"1x", excluded:true, stops:["서울역","남영","용산","노량진","대방","신길","영등포","신도림"] }
+  ];
+  const LINE = Object.fromEntries(LINES.map(L => [L.id, L]));
+  const hash = s => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 9973; return h; };
+  const last = {};
+  for (const L of LINES) if (!L.excluded) for (const n of L.stops) (last[n] ||= {})[L.id] = L.base + (hash(n + L.id) % 25) - 12;
+  const stationLast = n => last[n] ? Math.max(...Object.values(last[n])) : null;
+  const lineOf = n => Object.keys(last[n] || {})[0] || "2";
+  const inScope = Object.keys(ST).filter(n => last[n]);
+  const fmt = m => { m = ((Math.floor(m) % 1440) + 1440) % 1440; return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); };
+  const ratePerMin = (n, t) => { const [, , b23, b00] = ST[n]; return (t < 1440 ? b23 : t < 1500 ? b00 : b00 * 0.15) / 60; };
+
+  let t = 1420, playing = false, speed = 60, selected = "강남";
+  const $ = id => document.getElementById(id);
+
+  // ── 지도 ──
+  const cv = $("map"), ctx = cv.getContext("2d");
+  let W = 0, H = 0; const P = {};
+  const k = Math.cos(37.55 * Math.PI / 180);
+  const xs = Object.values(ST).map(s => s[1] * k), ys = Object.values(ST).map(s => s[0]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  function layout() {
+    const dpr = window.devicePixelRatio || 1, r = cv.getBoundingClientRect();
+    W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const pad = 44, s = Math.min((W - pad*2) / (maxX - minX), (H - pad*2 - 30) / (maxY - minY));
+    const ox = (W - (maxX - minX) * s) / 2, oy = 34 + (H - 64 - (maxY - minY) * s) / 2;
+    for (const n in ST) P[n] = [ox + (ST[n][1]*k - minX) * s, oy + (maxY - ST[n][0]) * s];
+    for (const a of active) placeBubble(a);
+  }
+  const people = {};
+  for (const n of inScope) { const h = hash(n); people[n] = Array.from({length: 40}, (_, i) => ({ a: ((h * (i+3)) % 628) / 100, r: 5 + ((h * (i+7)) % 13), sp: 0.2 + ((h+i) % 10) / 25 })); }
+  const font = getComputedStyle(document.body).fontFamily;
+
+  function drawMap(now) {
+    ctx.clearRect(0, 0, W, H);
+    const hl = new Set(active.map(a => a.line));
+    const anyHl = hl.size > 0;
+    // 1) 강조되지 않은 노선 먼저, 2) 강조 노선은 빛나게 위에
+    for (const pass of [0, 1]) for (const L of LINES) {
+      const isHl = hl.has(L.id);
+      if ((pass === 1) !== isHl) continue;
+      const seq = L.loop ? [...L.stops, L.stops[0]] : L.stops;
+      for (let i = 0; i < seq.length - 1; i++) {
+        const a = seq[i], b = seq[i+1];
+        ctx.beginPath(); ctx.moveTo(...P[a]); ctx.lineTo(...P[b]);
+        if (L.excluded) { ctx.setLineDash([4, 4]); ctx.strokeStyle = "#56607a"; ctx.lineWidth = 2; ctx.globalAlpha = anyHl ? 0.35 : 0.8; }
+        else {
+          const alive = t < Math.min(last[a][L.id], last[b][L.id]);
+          ctx.setLineDash([]); ctx.strokeStyle = alive ? L.color : "#3a4560";
+          if (isHl) { ctx.lineWidth = alive ? 7 : 4; ctx.shadowColor = L.color; ctx.shadowBlur = 16; ctx.globalAlpha = 1; }
+          else { ctx.lineWidth = alive ? 4 : 2.5; ctx.globalAlpha = anyHl ? 0.3 : 1; }
+        }
+        ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+      }
+    }
+    for (const n in ST) {
+      const [x, y] = P[n], sl = stationLast(n);
+      if (sl === null) { ctx.fillStyle = "#56607a"; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, 7); ctx.fill(); continue; }
+      const left = sl - t, onHl = anyHl && Object.keys(last[n]).some(id => hl.has(id));
+      const fade = anyHl && !onHl ? 0.35 : 1;
+      if (left > 0) {
+        const nDots = Math.min(40, Math.round(ratePerMin(n, t) * 10 / 25));
+        const pulse = left < 10 ? 0.6 + 0.4 * Math.sin(now / 180) : 1;
+        ctx.fillStyle = "#f3b84b";
+        for (let i = 0; i < nDots; i++) {
+          const p = people[n][i], a = p.a + now / 1000 * p.sp;
+          ctx.globalAlpha = 0.55 * pulse * fade; ctx.beginPath(); ctx.arc(x + Math.cos(a) * p.r * 1.3, y + Math.sin(a) * p.r, 1.6, 0, 7); ctx.fill();
+        }
+        ctx.globalAlpha = fade; ctx.fillStyle = left < 10 ? "#ff6b5e" : "#e8ecf4";
+        ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill();
+      } else { ctx.globalAlpha = fade; ctx.strokeStyle = "#3a4560"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.stroke(); }
+      ctx.globalAlpha = 1;
+      if (n === selected) { ctx.strokeStyle = "#f3b84b"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke(); }
+      const bubbleHere = active.some(a => a.station === n && a.phase === "show");
+      if (!bubbleHere && (n === selected || ST[n][3] >= 1000)) {
+        ctx.font = (n === selected ? "600 13px " : "12px ") + font;
+        ctx.globalAlpha = fade;
+        ctx.fillStyle = left > 0 ? (n === selected ? "#f3b84b" : "#c9d0de") : "#5b6680";
+        ctx.fillText(n, x + 8, y - 7); ctx.globalAlpha = 1;
+      }
+    }
+    drawTrains(now);
+  }
+
+  // ── 한마디: 역 위 말풍선 → 열차가 되어 노선을 따라 떠남 ──
+  const SHOW = 7000, SHRINK = 500, RUN = 2800, MAX_ON = 3;
+  const ADJ = ["뛰는","졸린","환승하는","버티는","느긋한","급한","야근한","배고픈"];
+  const NOUN = ["막차러","승객","귀가러","올빼미"];
+  const nick = id => { const h = hash(id || "x"); return `${ADJ[h % ADJ.length]} ${NOUN[(h >> 3) % NOUN.length]} #${h % 100}`; };
+  const active = [], queue = [], seen = new Set();
+  let passedCount = 0, myId = null;
+
+  function enqueue(m) {
+    if (!m || seen.has(m.id) || !ST[m.station]) return;
+    seen.add(m.id); queue.push(m);
+  }
+  // 노선을 따라 이 역에서 약 160px 앞까지의 경로
+  function pathFrom(station, lineId) {
+    const L = LINE[lineId]; if (!L) return [P[station]];
+    let i = L.stops.indexOf(station); if (i < 0) return [P[station]];
+    const n = L.stops.length, dir = (L.loop || i < n - 1) ? 1 : -1, pts = [P[station]];
+    let len = 0;
+    for (let s = 0; s < n && len < 160; s++) {
+      let j = i + dir; if (L.loop) j = (j + n) % n; if (j < 0 || j >= n) break;
+      const a = P[L.stops[i]], b = P[L.stops[j]]; len += Math.hypot(b[0]-a[0], b[1]-a[1]); pts.push(b); i = j;
+    }
+    return pts;
+  }
+  function pointAt(pts, d) {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i+1], l = Math.hypot(b[0]-a[0], b[1]-a[1]);
+      if (d <= l || i === pts.length - 2) { const q = l ? Math.min(1, d / l) : 0; return [a[0] + (b[0]-a[0]) * q, a[1] + (b[1]-a[1]) * q, Math.atan2(b[1]-a[1], b[0]-a[0])]; }
+      d -= l;
+    }
+    return [pts[0][0], pts[0][1], 0];
+  }
+  const pathLen = pts => pts.slice(1).reduce((s, b, i) => s + Math.hypot(b[0]-pts[i][0], b[1]-pts[i][1]), 0);
+
+  function placeBubble(a) {
+    const el = a.el, [x, y] = P[a.station], w = el.offsetWidth || 160, h = el.offsetHeight || 50;
+    const below = y - h - 22 < 30;
+    el.classList.toggle("below", below);
+    const cx = Math.max(w / 2 + 8, Math.min(W - w / 2 - 8, x));
+    el.style.left = cx + "px"; el.style.top = y + "px";
+    el.style.setProperty("--tail", (50 + (x - cx) / w * 100) + "%");
+  }
+  function start(m, now) {
+    const el = document.createElement("div");
+    const line = LINE[m.line] && !LINE[m.line].excluded ? m.line : lineOf(m.station);
+    el.className = "bubble" + (m.uid && m.uid === myId ? " me" : "") + (m.sample ? " sample" : "");
+    const who = document.createElement("div"); who.className = "who";
+    const dot = document.createElement("i"); dot.style.background = LINE[line].color;
+    who.append(dot, document.createTextNode(`${m.station} · ${m.uid && m.uid === myId ? "나" : nick(m.uid)}`));
+    const tx = document.createElement("div"); tx.className = "txt"; tx.textContent = m.text;
+    el.append(who, tx); $("bubbles").appendChild(el);
+    const a = { m, el, station: m.station, line, t0: now, phase: "show", path: null, len: 0 };
+    active.push(a); placeBubble(a);
+    requestAnimationFrame(() => el.classList.add("in"));
+  }
+  function tickBubbles(now) {
+    // 대기열에서 꺼내기: 동시에 3개, 같은 역은 한 번에 하나
+    for (let i = 0; i < queue.length && active.filter(a => a.phase === "show").length < MAX_ON; ) {
+      if (active.some(a => a.station === queue[i].station && a.phase === "show")) { i++; continue; }
+      start(queue.splice(i, 1)[0], now);
+    }
+    for (let i = active.length - 1; i >= 0; i--) {
+      const a = active[i], age = now - a.t0;
+      if (a.phase === "show" && age >= SHOW) { a.phase = "run"; a.el.classList.remove("in"); a.el.classList.add("out"); a.path = pathFrom(a.station, a.line); a.len = pathLen(a.path); }
+      if (a.phase === "run" && age >= SHOW + SHRINK && a.el.parentNode) a.el.remove();
+      if (age >= SHOW + RUN) { active.splice(i, 1); passedCount++; $("passed").textContent = `방금 떠난 한마디 ${passedCount}개`; }
+    }
+  }
+  function drawTrains(now) {
+    for (const a of active) {
+      if (a.phase !== "run") continue;
+      const q = Math.min(1, (now - a.t0 - SHOW) / RUN), d = q * q * a.len;
+      const [x, y, ang] = pointAt(a.path, d), color = LINE[a.line].color;
+      // 꼬리 불빛
+      for (let s = 1; s <= 6; s++) {
+        const [tx, ty] = pointAt(a.path, Math.max(0, d - s * 7));
+        ctx.globalAlpha = (1 - q) * 0.4 * (1 - s / 7); ctx.fillStyle = "#f3b84b";
+        ctx.beginPath(); ctx.arc(tx, ty, 4 - s * 0.4, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = q < 0.6 ? 1 : 1 - (q - 0.6) / 0.4;
+      ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+      ctx.shadowColor = color; ctx.shadowBlur = 12;
+      ctx.fillStyle = "#eef1f7"; roundRect(-13, -5.5, 26, 11, 4); ctx.fill();
+      ctx.shadowBlur = 0; ctx.fillStyle = color; ctx.fillRect(-13, -5.5, 26, 2.5);
+      ctx.fillStyle = "#1b2537"; for (const wx of [-9, -3, 3]) ctx.fillRect(wx, -1.5, 4, 4);
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
+  }
+  function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+  // 예시 한마디 (이 화면에만, 저장 안 됨)
+  const SAMPLES = [["홍대입구","탔어요"],["강남","2호선 사람 미어터짐"],["건대입구","놓쳤어요"],["신림","달리는 중"],["잠실","막차 3분 남았다 뛰어"],["종각","택시 잡는 중…"],["사당","4호선으로 갈아탐"],["신촌","탔어요"]];
+  let sampleN = 0;
+  $("sampleBtn").onclick = () => {
+    for (let i = 0; i < 4; i++) { const [s, tx] = SAMPLES[(sampleN++) % SAMPLES.length]; enqueue({ id: "sample-" + sampleN, station: s, text: tx, uid: "sample" + sampleN, sample: true }); }
+  };
+
+  // ── 내 역 ──
+  const pick = $("pick");
+  [...inScope].sort((a, b) => a.localeCompare(b, "ko")).forEach(n => { const o = document.createElement("option"); o.value = n; o.textContent = n; pick.appendChild(o); });
+  pick.value = selected;
+  pick.onchange = () => { selected = pick.value; panel(); };
+  function panel() {
+    const sl = stationLast(selected), left = sl - t, cd = $("countdown");
+    $("lastT").textContent = "막차 " + fmt(sl);
+    if (left > 0) {
+      const sec = Math.floor(left * 60);
+      cd.textContent = String(Math.floor(sec / 60)).padStart(2, "0") + ":" + String(sec % 60).padStart(2, "0") + " 남음";
+      cd.classList.toggle("warn", left < 10);
+      $("ambient").innerHTML = `평소 이 시각 이 역에서 10분에 <b>${Math.round(ratePerMin(selected, t) * 10).toLocaleString()}명</b>이 타요.`;
+    } else {
+      cd.textContent = "막차가 떠났어요"; cd.classList.add("warn");
+      const alt = inScope.filter(n => stationLast(n) > t).sort((a, b) => Math.hypot(P[a][0]-P[selected][0], P[a][1]-P[selected][1]) - Math.hypot(P[b][0]-P[selected][0], P[b][1]-P[selected][1]))[0];
+      $("ambient").innerHTML = alt ? `가장 가까운 열린 역: <b>${alt}</b> (막차 ${fmt(stationLast(alt))})` : "열린 역이 없어요. 심야버스를 찾아보세요.";
+    }
+    $("burn").style.width = Math.max(0, Math.min(100, left / (sl - 1380) * 100)) + "%";
+    $("clock").textContent = fmt(t);
+    $("slider").value = Math.min(1530, Math.max(1350, t));
+  }
+
+  // ── 시간 ──
+  const realNow = () => { const d = new Date(); let m = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; if (m < 360) m += 1440; return m; };
+  const setLive = live => { const p = $("modePill"); p.className = "pill" + (live ? " live" : ""); p.textContent = live ? "운영 중" : "데모 시계"; };
+  const setPlay = on => { playing = on; $("play").textContent = on ? "❚❚ 멈춤" : "▶ 재생"; };
+  $("slider").oninput = e => { t = +e.target.value; speed = 60; setLive(false); panel(); };
+  $("play").onclick = () => { if (!playing && t >= 1530) t = 1350; setPlay(!playing); };
+  $("nowBtn").onclick = () => {
+    const m = realNow();
+    if (m >= 1380 && m <= 1530) { t = m; speed = 1; setLive(true); setPlay(true); }
+    else { setLive(false); $("modePill").textContent = "지금은 문 닫음"; }
+    panel();
+  };
+  cv.addEventListener("click", e => {
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    let best = null, bd = 16;
+    for (const n of inScope) { const d = Math.hypot(P[n][0] - x, P[n][1] - y); if (d < bd) { bd = d; best = n; } }
+    if (best) { selected = best; pick.value = best; panel(); }
+  });
+
+  // ── 한마디 저장 (공유 저장소) ──
+  const BAN = ["시발","씨발","병신","개새","좆","fuck"];
+  const clean = s => {
+    s = s.replace(/\s+/g, " ").trim().slice(0, 60);
+    s = s.replace(/01[016789][-\s.]?\d{3,4}[-\s.]?\d{4}/g, "***-****-****");
+    for (const w of BAN) s = s.split(w).join("♡".repeat(w.length));
+    return s;
+  };
+  let db = null, lastSent = 0;
+  const status = msg => { $("chatStatus").textContent = msg; };
+  const setWritable = on => { $("msgInput").disabled = !on; $("sendBtn").disabled = !on; document.querySelectorAll("[data-preset]").forEach(b => b.disabled = !on); };
+  setWritable(false);
+
+  async function send(text, kind) {
+    if (!db) return;
+    text = clean(text); if (!text) return;
+    if (Date.now() - lastSent < 3000) { status("천천히요. 3초에 한 번 띄울 수 있어요."); return; }
+    lastSent = Date.now(); status("");
+    try { await db.collection("chat").add({ uid: myId || "anon", text, kind, station: selected, line: lineOf(selected), at: Date.now() }); $("msgInput").value = ""; }
+    catch (e) {
+      if (e && e.code === "invalid_argument") { setWritable(false); status("읽기 전용이에요. 글을 쓰려면 Contributor 이상으로 공유받아야 해요."); }
+      else if (e && e.code === "quota_exceeded") status("저장 공간이 가득 찼어요. 관리자에게 알려 주세요.");
+      else status("띄우지 못했어요. 잠시 뒤 다시 시도해 주세요.");
+    }
+  }
+  $("sendForm").addEventListener("submit", e => { e.preventDefault(); send($("msgInput").value, "text"); });
+  document.querySelectorAll("[data-preset]").forEach(b => b.onclick = () => send(b.dataset.preset, "preset"));
+
+  (async () => {
+    const api = window.claude && window.claude.use ? window.claude : null;
+    if (!api) { status("한마디는 claude.ai에서 이 페이지를 열었을 때만 돼요. 예시 한마디는 볼 수 있어요."); return; }
+    const [d, u] = await Promise.all([api.use("db"), api.use("user")]);
+    db = d;
+    if (!db) { status("로그인하면 한마디를 띄울 수 있어요. 예시 한마디는 볼 수 있어요."); return; }
+    myId = u ? await u.id() : null;
+    const canWrite = u ? await u.can("data.write") : null;
+    if (canWrite === false) status("읽기 전용이에요. 글을 쓰려면 Contributor 이상으로 공유받아야 해요.");
+    else setWritable(true);
+    const timer = setTimeout(() => status("한마디 서버에 아직 닿지 않았어요."), 10000);
+    let first = true;
+    db.collection("chat").orderBy("at", "desc").limit(40).onSnapshot(snap => {
+      if (!snap.metadata.fromCache) clearTimeout(timer);
+      const msgs = snap.docs.map(x => Object.assign({ id: x.id }, x.data())).filter(m => typeof m.text === "string" && typeof m.at === "number");
+      const now = Date.now();
+      if (first) { // 처음 열면 최근 30분 안의 한마디 3개만 다시 띄움
+        first = false;
+        msgs.filter(m => now - m.at < 30 * 60000).slice(0, 3).reverse().forEach(enqueue);
+        msgs.forEach(m => seen.add(m.id));
+      } else {
+        msgs.filter(m => now - m.at < 2 * 60000).reverse().forEach(enqueue);
+      }
+    }, () => { clearTimeout(timer); setWritable(false); status("연결이 끊겼어요. 새로고침해 주세요."); });
+  })();
+
+  // ── 루프 ──
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let prev = performance.now(), acc = 0;
+  function frame(now) {
+    const dt = Math.min(0.1, (now - prev) / 1000); prev = now;
+    if (playing) { t += dt * speed / 60; if (t > 1530) { t = 1530; setPlay(false); } acc += dt; if (acc > 0.2) { acc = 0; panel(); } }
+    tickBubbles(now);
+    drawMap(reduce ? 0 : now);
+    requestAnimationFrame(frame);
+  }
+  window.addEventListener("resize", () => { layout(); drawMap(0); });
+  layout(); panel(); drawMap(0); requestAnimationFrame(frame);
+  setTimeout(() => $("sampleBtn").click(), 700); // 처음 열면 모양을 바로 보이게 예시 한마디를 한 번 띄움
+})();
+</script>
+
+</body>
+</html>
