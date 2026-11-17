@@ -91,6 +91,9 @@ button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid v
 button:hover:not(:disabled) { border-color: var(--lamp); }
 button:disabled, input:disabled { opacity: 0.5; cursor: not-allowed; }
 button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--lamp); outline-offset: 2px; }
+.team { font-size: 12px; font-weight: 500; color: var(--bubble-ink); background: var(--lamp); border-radius: 6px; padding: 2px 7px; margin-left: 8px; vertical-align: 3px; }
+.nbus { position: absolute; transform: translate(-50%, 0); background: #ffcf5c; color: var(--bubble-ink); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,.45); display: none; }
+.nbus small { font-weight: 500; color: #5b4a1e; }
 .status { font-size: 12px; color: var(--dim); min-height: 1em; }
 
 .railbar { background: var(--platform); border-radius: 14px; padding: 10px 14px; display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 12px; align-items: center; }
@@ -101,7 +104,7 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
 
 <div class="wrap">
   <header>
-    <h1>막차 대합실</h1>
+    <h1>막차 대합실<span class="team">ABS 팀</span></h1>
     <div class="clock">
       <span id="modePill" class="pill">데모 시계</span>
       <span class="time" id="clock">23:40</span>
@@ -112,8 +115,9 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
     <div class="mapbox" id="mapbox">
       <canvas id="map" role="img" aria-label="서울 지하철 막차 지도. 한마디가 역 위에 떴다가 열차가 되어 노선을 따라 떠납니다."></canvas>
       <div class="bubbles" id="bubbles" aria-live="polite"></div>
+      <div class="bubbles"><div class="nbus" id="nbusTag"></div></div>
       <div class="maptop"><span id="passed">한마디는 역 위에 떴다가 열차가 되어 떠나요</span><button type="button" id="sampleBtn">예시 한마디 띄우기</button></div>
-      <div class="mapnote">점 = 평소 이 시각 그 역에서 타는 사람 · 점선 = 데이터 범위 밖 · 예시 데이터(가짜 수치)</div>
+      <div class="mapnote">점 = 평소 이 시각 그 역에서 타는 사람 · 점선 = 데이터 범위 밖 · 버스 = 막차 뒤 심야버스 · 예시 데이터(가짜 수치)</div>
     </div>
 
     <aside>
@@ -138,7 +142,7 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
           <input id="msgInput" maxlength="60" autocomplete="off" placeholder="지도에 띄울 한마디" aria-label="한마디">
           <button type="submit" id="sendBtn">띄우기</button>
         </form>
-        <div class="status" id="chatStatus">떠난 한마디는 다시 볼 수 없어요.</div>
+        <div class="status" id="chatStatus">ABS 팀원끼리만 보는 대합실이에요. 떠난 한마디는 다시 볼 수 없어요.</div>
       </div>
     </aside>
   </div>
@@ -189,6 +193,10 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
     { id:"9x", excluded:true, stops:["여의도","노량진","동작","고속터미널","신논현"] },
     { id:"1x", excluded:true, stops:["서울역","남영","용산","노량진","대방","신길","영등포","신도림"] }
   ];
+  // 심야버스(예시): 역 → 근처 정류장에 서는 N버스 번호. 노선·배차는 가짜.
+  const NB = { "강남":["N13","N61"], "홍대입구":["N26","N62"], "신림":["N16"], "사당":["N15"], "건대입구":["N62"], "잠실":["N13"],
+    "종각":["N26","N37"], "서울역":["N15","N16"], "신촌":["N26"], "청량리":["N26"], "왕십리":["N62"], "신도림":["N16"], "합정":["N26"],
+    "고속터미널":["N61"], "여의도":["N61"], "구로디지털단지":["N16"], "혜화":["N15"], "성수":["N62"], "교대":["N37"], "삼성":["N13"], "영등포":["N16"] };
   const LINE = Object.fromEntries(LINES.map(L => [L.id, L]));
   const hash = s => { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 9973; return h; };
   const last = {};
@@ -198,6 +206,19 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
   const inScope = Object.keys(ST).filter(n => last[n]);
   const fmt = m => { m = ((Math.floor(m) % 1440) + 1440) % 1440; return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0"); };
   const ratePerMin = (n, t) => { const [, , b23, b00] = ST[n]; return (t < 1440 ? b23 : t < 1500 ? b00 : b00 * 0.15) / 60; };
+
+  // 다음 버스까지 남은 분 (예시 배차 20~39분)
+  function nextBus(n, t) {
+    let best = null;
+    for (const r of NB[n] || []) { const iv = 20 + hash(r) % 20, w = Math.ceil((hash(n + r) % iv - t % iv + iv * 2) % iv) || iv; if (!best || w < best.wait) best = { station: n, route: r, wait: w }; }
+    return best;
+  }
+  // 내 역에 버스가 없으면 가장 가까운 버스 역
+  function busFor(n) {
+    if (NB[n]) return nextBus(n, t);
+    const near = Object.keys(NB).sort((a, b) => Math.hypot(P[a][0]-P[n][0], P[a][1]-P[n][1]) - Math.hypot(P[b][0]-P[n][0], P[b][1]-P[n][1]))[0];
+    return nextBus(near, t);
+  }
 
   let t = 1420, playing = false, speed = 60, selected = "강남";
   const $ = id => document.getElementById(id);
@@ -215,6 +236,7 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
     const ox = (W - (maxX - minX) * s) / 2, oy = 34 + (H - 64 - (maxY - minY) * s) / 2;
     for (const n in ST) P[n] = [ox + (ST[n][1]*k - minX) * s, oy + (maxY - ST[n][0]) * s];
     for (const a of active) placeBubble(a);
+    if (typeof busTag === "function" && P[selected]) busTag();
   }
   const people = {};
   for (const n of inScope) { const h = hash(n); people[n] = Array.from({length: 40}, (_, i) => ({ a: ((h * (i+3)) % 628) / 100, r: 5 + ((h * (i+7)) % 13), sp: 0.2 + ((h+i) % 10) / 25 })); }
@@ -268,7 +290,50 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
         ctx.fillText(n, x + 8, y - 7); ctx.globalAlpha = 1;
       }
     }
+    drawBuses(now);
     drawTrains(now);
+  }
+
+  // ── 심야버스: 막차가 끊긴 역 옆에 작은 버스, 내 역은 크게 ──
+  function drawBuses(now) {
+    for (const n in NB) if (n !== selected && stationLast(n) <= t) drawBus(P[n][0] + 12, P[n][1] + 11, 0.8, now + hash(n) * 37, 0.85);
+    if (stationLast(selected) > t) return;
+    const b = busFor(selected), [sx, sy] = P[selected], [bx, by] = P[b.station];
+    if (b.station !== selected) { // 걸어갈 길
+      ctx.setLineDash([3, 5]); ctx.strokeStyle = "#ffcf5c"; ctx.lineWidth = 2; ctx.globalAlpha = 0.8;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(bx + 18, by + 18); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    drawBus(bx + 18, by + 18, 1.7, now, 1, true);
+  }
+  function drawBus(x, y, s, now, alpha, glow) {
+    const bob = now ? Math.sin(now / 280) * 1.2 : 0, blink = now && now % 3600 < 130;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(x, y + bob); ctx.scale(s, s);
+    if (glow) { ctx.shadowColor = "#ffcf5c"; ctx.shadowBlur = 18; }
+    ctx.fillStyle = "#ff6b5e"; roundRect(-4, -12, 8, 5, 2); ctx.fill();            // N 표지
+    ctx.fillStyle = "#ffcf5c"; roundRect(-11, -8, 22, 14, 5); ctx.fill();          // 몸통
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#fff"; ctx.font = "700 4.5px " + font; ctx.textAlign = "center"; ctx.fillText("N", 0, -8.3); ctx.textAlign = "start";
+    ctx.fillStyle = "#1b2537"; roundRect(-9, -6, 18, 6, 2.5); ctx.fill();          // 앞유리
+    for (const ex of [-4.5, 4.5]) {                                               // 눈
+      if (blink) { ctx.strokeStyle = "#fff"; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(ex - 2, -3); ctx.lineTo(ex + 2, -3); ctx.stroke(); }
+      else { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(ex, -3, 2.2, 0, 7); ctx.fill(); ctx.fillStyle = "#1b2537"; ctx.beginPath(); ctx.arc(ex + 0.5, -2.7, 1.1, 0, 7); ctx.fill(); }
+    }
+    ctx.fillStyle = "#ff8fa0"; ctx.globalAlpha = alpha * 0.7;                       // 볼
+    for (const cx of [-7.5, 7.5]) { ctx.beginPath(); ctx.arc(cx, 2.3, 1.5, 0, 7); ctx.fill(); }
+    ctx.globalAlpha = alpha; ctx.strokeStyle = "#1b2537"; ctx.lineWidth = 0.9;      // 웃는 입
+    ctx.beginPath(); ctx.arc(0, 1.2, 2, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+    ctx.fillStyle = "#1b2537"; for (const wx of [-6, 6]) { ctx.beginPath(); ctx.arc(wx, 6.5, 2.4, 0, 7); ctx.fill(); }  // 바퀴
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  function busTag() {
+    const el = $("nbusTag");
+    if (stationLast(selected) > t) { el.style.display = "none"; return; }
+    const b = busFor(selected), [bx, by] = P[b.station];
+    el.innerHTML = (b.station === selected ? "" : `<small>${b.station}까지 걸어서 · </small>`) + `${b.route} ${b.wait}분 뒤`;
+    el.style.display = "block";
+    const w = el.offsetWidth || 120;
+    el.style.left = Math.max(w / 2 + 8, Math.min(W - w / 2 - 8, bx + 18)) + "px";
+    el.style.top = Math.min(H - 54, by + 38) + "px";
   }
 
   // ── 한마디: 역 위 말풍선 → 열차가 되어 노선을 따라 떠남 ──
@@ -384,9 +449,12 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
     } else {
       cd.textContent = "막차가 떠났어요"; cd.classList.add("warn");
       const alt = inScope.filter(n => stationLast(n) > t).sort((a, b) => Math.hypot(P[a][0]-P[selected][0], P[a][1]-P[selected][1]) - Math.hypot(P[b][0]-P[selected][0], P[b][1]-P[selected][1]))[0];
-      $("ambient").innerHTML = alt ? `가장 가까운 열린 역: <b>${alt}</b> (막차 ${fmt(stationLast(alt))})` : "열린 역이 없어요. 심야버스를 찾아보세요.";
+      const b = busFor(selected);
+      $("ambient").innerHTML = `심야버스 <b>${b.route}</b> ${b.wait}분 뒤${b.station === selected ? "" : ` (${b.station} 정류장)`} · 예시` +
+        (alt ? `<br>가장 가까운 열린 역: <b>${alt}</b> (막차 ${fmt(stationLast(alt))})` : "");
     }
     $("burn").style.width = Math.max(0, Math.min(100, left / (sl - 1380) * 100)) + "%";
+    busTag();
     $("clock").textContent = fmt(t);
     $("slider").value = Math.min(1530, Math.max(1350, t));
   }
@@ -430,7 +498,7 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
     lastSent = Date.now(); status("");
     try { await db.collection("chat").add({ uid: myId || "anon", text, kind, station: selected, line: lineOf(selected), at: Date.now() }); $("msgInput").value = ""; }
     catch (e) {
-      if (e && e.code === "invalid_argument") { setWritable(false); status("읽기 전용이에요. 글을 쓰려면 Contributor 이상으로 공유받아야 해요."); }
+      if (e && e.code === "invalid_argument") { setWritable(false); status("읽기 전용이에요. 팀장에게 Contributor로 공유해 달라고 하세요."); }
       else if (e && e.code === "quota_exceeded") status("저장 공간이 가득 찼어요. 관리자에게 알려 주세요.");
       else status("띄우지 못했어요. 잠시 뒤 다시 시도해 주세요.");
     }
@@ -446,7 +514,7 @@ input[type=range] { width: 100%; accent-color: var(--lamp); }
     if (!db) { status("로그인하면 한마디를 띄울 수 있어요. 예시 한마디는 볼 수 있어요."); return; }
     myId = u ? await u.id() : null;
     const canWrite = u ? await u.can("data.write") : null;
-    if (canWrite === false) status("읽기 전용이에요. 글을 쓰려면 Contributor 이상으로 공유받아야 해요.");
+    if (canWrite === false) status("읽기 전용이에요. 팀장에게 Contributor로 공유해 달라고 하세요.");
     else setWritable(true);
     const timer = setTimeout(() => status("한마디 서버에 아직 닿지 않았어요."), 10000);
     let first = true;
