@@ -22,6 +22,16 @@
 - 출처: `subwayStationMaster`(좌표, BLDN_ID), `SearchInfoBySubwayNameService`(STATION_CD)
 - BLDN_ID 와 STATION_CD 는 같은 코드 체계다 (서울역 1호선 = `0150`, 둘 다 확인함).
 
+## lines.json — 담당: 역 마스터
+
+```json
+[{ "id": "2", "color": "#1fb35a", "loop": true, "excluded": false, "stops": ["시청", "을지로입구", "..."] }]
+```
+- 지도에 노선을 그리려면 **노선별 역 순서**가 필요하다. `stations.json` 만으로는 선을 못 긋는다.
+- 순서는 `SearchInfoBySubwayNameService` 의 `FR_CODE`(역 외부코드, 예: 강남 `222`)로 정렬해서 만든다.
+- 갈라지는 노선(2호선 성수·신정 지선, 5호선 마천 지선)은 `"id": "2a"` 처럼 따로 한 줄로 둔다.
+- `excluded: true` 는 데이터 범위 밖 구간(점선 회색)이다. 색은 노선 공식 색에 가깝게.
+
 ## last_trains.json — 담당: 시간표 수집 → 리드 검증
 
 ```json

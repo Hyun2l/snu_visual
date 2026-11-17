@@ -1,5 +1,7 @@
 # 팀 분담과 브랜치
 
+> 개발 처음이면 [처음 시작하기](guide/00-start.md)부터. 역할별 자세한 설명과 AI에게 줄 말은 `docs/guide/` 에 있다.
+
 ## 규칙
 
 - `main` 은 항상 열리는 상태로 둔다. 직접 푸시하지 말고 **각자 이름 브랜치 → PR → 리드가 머지**한다.
@@ -28,7 +30,7 @@ git switch <내 이름 브랜치>   # 예: git switch Min
 |---|---|---|---|---|---|
 | 1 | 리드: 계약·막차 계산·머지 | `hyun` | `pipeline/build_*.py` | `data/out/last_trains.json` 검증, 역별 대표 막차 규칙 | 역 20곳을 카카오맵 막차 조회와 대조해 ±1분 |
 | 2 | 시간표 수집 | 정해지면 적기 | `pipeline/collect_timetable.py` | 범위 안 모든 역·방면의 막차 원본 → `last_trains.json` | 1~9호선 역 수가 역 마스터와 일치, 누락 역 목록 0 |
-| 3 | 역 마스터·승하차 | 정해지면 적기 | `pipeline/collect_stations.py`, `collect_ridership.py` | `stations.json`, `ridership.json` | 세 데이터의 역 이름이 전부 매칭(못 맞춘 이름 목록 0) |
+| 3 | 역 마스터·승하차 | 정해지면 적기 | `pipeline/collect_stations.py`, `collect_ridership.py` | `stations.json`, `lines.json`, `ridership.json` | 세 데이터의 역 이름이 전부 매칭(못 맞춘 이름 목록 0) |
 | 4 | 심야버스 | 정해지면 적기 | `pipeline/collect_nbus.py`, `data/manual/` | `nbus.json` | 출처 확정, 주요 역 20곳 이상 N버스 정류장 연결 |
 | 5 | 지도 화면 | 정해지면 적기 | `web/` | 프로토타입을 모듈로 나누고 JSON 읽기 | fixtures → out 으로 경로만 바꿔도 동작, 휴대폰 폭 확인 |
 | 6 | 채팅·배포 | 정해지면 적기 | `web/chat.js`, `supabase/` | Supabase 프로젝트 설정(시작 코드 있음: `supabase/README.md`), 지도에 붙이기, GitHub Pages | 배포 주소에서 3명 이상이 동시에 한마디 확인, 30개 몰려도 1분 안에 다 지나감 |
