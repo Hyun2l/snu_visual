@@ -49,9 +49,11 @@ open makcha-demo/index.html
 | 역 좌표 | 공공데이터포털 | 지도 |
 | 심야버스(N버스) 노선·정류장·도착 정보 | 서울 열린데이터광장 / 서울 버스 API | 막차 뒤 대안 안내 |
 
-확인 필요:
-- 시간표 API 응답에 열차번호가 실제로 오는지 (안 오면 도달 범위 계산은 근사로 낮춤)
-- 승하차 데이터에 00시·01시 칸이 있는지
+확인 결과 (2026-11-17, `pipeline/check_sources.py`):
+- 시간표 API에 열차번호가 온다
+- 승하차 데이터에 23·0·1시 칸이 있다 (월 합계)
+- 막차는 행선지마다 다르다 (강남 내선: 신도림행 24:00, 서울대입구행 24:46)
+- 심야버스 노선↔정류장 연결 데이터는 아직 출처 미확정
 - 범위는 서울교통공사 운영 구간만. 코레일 구간, 신분당선, 9호선 1단계는 빠진다
 
 ## 할 일
@@ -75,7 +77,21 @@ open makcha-demo/index.html
 ## 폴더
 
 ```
-makcha-demo/
-  index.html   프로토타입 한 장 (HTML/CSS/JS, 라이브러리 없음)
+makcha-demo/      프로토타입 한 장 (화면 시안, 데이터는 가짜)
+pipeline/         Python 수집·정제 (표준 라이브러리만)
+  seoul_api.py      서울 열린데이터광장 호출 공통 코드
+  check_sources.py  데이터 소스가 기대한 모양인지 확인
+data/fixtures/    가짜 데이터 (계약과 같은 모양, 프론트 개발용)
+data/out/         실제 결과 JSON
+data/manual/      손으로 모은 데이터 (예: 심야버스)
+web/              실제 화면 (프로토타입을 나눠서 옮길 곳)
+supabase/         채팅 테이블·정책
+docs/             데이터 계약, 팀 분담, 확인 결과
 ```
 
+팀원은 [docs/team.md](docs/team.md)부터 읽기. 데이터 형식은 [docs/data-contract.md](docs/data-contract.md).
+
+```bash
+cp .env.example .env
+python3 pipeline/check_sources.py
+```

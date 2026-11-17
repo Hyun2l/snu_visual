@@ -1,0 +1,257 @@
+[
+ {
+  "station": "강남",
+  "routes": [
+   {
+    "no": "N13",
+    "stop_id": "F-N13-1428",
+    "stop_name": "강남역",
+    "walk_m": 277
+   },
+   {
+    "no": "N61",
+    "stop_id": "F-N61-1428",
+    "stop_name": "강남역",
+    "walk_m": 180
+   }
+  ]
+ },
+ {
+  "station": "홍대입구",
+  "routes": [
+   {
+    "no": "N26",
+    "stop_id": "F-N26-9180",
+    "stop_name": "홍대입구역",
+    "walk_m": 105
+   },
+   {
+    "no": "N62",
+    "stop_id": "F-N62-9180",
+    "stop_name": "홍대입구역",
+    "walk_m": 225
+   }
+  ]
+ },
+ {
+  "station": "신림",
+  "routes": [
+   {
+    "no": "N16",
+    "stop_id": "F-N16-5123",
+    "stop_name": "신림역",
+    "walk_m": 274
+   }
+  ]
+ },
+ {
+  "station": "사당",
+  "routes": [
+   {
+    "no": "N15",
+    "stop_id": "F-N15-5854",
+    "stop_name": "사당역",
+    "walk_m": 212
+   }
+  ]
+ },
+ {
+  "station": "건대입구",
+  "routes": [
+   {
+    "no": "N62",
+    "stop_id": "F-N62-4170",
+    "stop_name": "건대입구역",
+    "walk_m": 260
+   }
+  ]
+ },
+ {
+  "station": "잠실",
+  "routes": [
+   {
+    "no": "N13",
+    "stop_id": "F-N13-5271",
+    "stop_name": "잠실역",
+    "walk_m": 300
+   }
+  ]
+ },
+ {
+  "station": "종각",
+  "routes": [
+   {
+    "no": "N26",
+    "stop_id": "F-N26-6511",
+    "stop_name": "종각역",
+    "walk_m": 182
+   },
+   {
+    "no": "N37",
+    "stop_id": "F-N37-6511",
+    "stop_name": "종각역",
+    "walk_m": 214
+   }
+  ]
+ },
+ {
+  "station": "서울역",
+  "routes": [
+   {
+    "no": "N15",
+    "stop_id": "F-N15-7803",
+    "stop_name": "서울역역",
+    "walk_m": 315
+   },
+   {
+    "no": "N16",
+    "stop_id": "F-N16-7803",
+    "stop_name": "서울역역",
+    "walk_m": 316
+   }
+  ]
+ },
+ {
+  "station": "신촌",
+  "routes": [
+   {
+    "no": "N26",
+    "stop_id": "F-N26-94",
+    "stop_name": "신촌역",
+    "walk_m": 272
+   }
+  ]
+ },
+ {
+  "station": "청량리",
+  "routes": [
+   {
+    "no": "N26",
+    "stop_id": "F-N26-9045",
+    "stop_name": "청량리역",
+    "walk_m": 189
+   }
+  ]
+ },
+ {
+  "station": "왕십리",
+  "routes": [
+   {
+    "no": "N62",
+    "stop_id": "F-N62-2824",
+    "stop_name": "왕십리역",
+    "walk_m": 257
+   }
+  ]
+ },
+ {
+  "station": "신도림",
+  "routes": [
+   {
+    "no": "N16",
+    "stop_id": "F-N16-9398",
+    "stop_name": "신도림역",
+    "walk_m": 116
+   }
+  ]
+ },
+ {
+  "station": "합정",
+  "routes": [
+   {
+    "no": "N26",
+    "stop_id": "F-N26-6296",
+    "stop_name": "합정역",
+    "walk_m": 256
+   }
+  ]
+ },
+ {
+  "station": "고속터미널",
+  "routes": [
+   {
+    "no": "N61",
+    "stop_id": "F-N61-7925",
+    "stop_name": "고속터미널역",
+    "walk_m": 296
+   }
+  ]
+ },
+ {
+  "station": "여의도",
+  "routes": [
+   {
+    "no": "N61",
+    "stop_id": "F-N61-5279",
+    "stop_name": "여의도역",
+    "walk_m": 152
+   }
+  ]
+ },
+ {
+  "station": "구로디지털단지",
+  "routes": [
+   {
+    "no": "N16",
+    "stop_id": "F-N16-3951",
+    "stop_name": "구로디지털단지역",
+    "walk_m": 195
+   }
+  ]
+ },
+ {
+  "station": "혜화",
+  "routes": [
+   {
+    "no": "N15",
+    "stop_id": "F-N15-5519",
+    "stop_name": "혜화역",
+    "walk_m": 200
+   }
+  ]
+ },
+ {
+  "station": "성수",
+  "routes": [
+   {
+    "no": "N62",
+    "stop_id": "F-N62-3875",
+    "stop_name": "성수역",
+    "walk_m": 101
+   }
+  ]
+ },
+ {
+  "station": "교대",
+  "routes": [
+   {
+    "no": "N37",
+    "stop_id": "F-N37-1820",
+    "stop_name": "교대역",
+    "walk_m": 282
+   }
+  ]
+ },
+ {
+  "station": "삼성",
+  "routes": [
+   {
+    "no": "N13",
+    "stop_id": "F-N13-17",
+    "stop_name": "삼성역",
+    "walk_m": 121
+   }
+  ]
+ },
+ {
+  "station": "영등포",
+  "routes": [
+   {
+    "no": "N16",
+    "stop_id": "F-N16-7327",
+    "stop_name": "영등포역",
+    "walk_m": 156
+   }
+  ]
+ }
+]
